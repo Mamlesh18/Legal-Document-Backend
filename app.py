@@ -18,9 +18,9 @@ from nltk.stem import WordNetLemmatizer
 from keras.models import load_model
 
 
-
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "https://legal-document-frontend-psi.vercel.app"}})
+
 
 def update_document(city,state,date,landlordname,landlordaddress1,lordaddressline2,lordcity,lordstate,lordpincode,
         tenantname,tenantaddress1,tenantaddressline2,tencity,tenstate,tenpincode,leasepropertyaddress1,
