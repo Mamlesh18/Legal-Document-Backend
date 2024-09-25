@@ -6,16 +6,13 @@ from docx import Document
 import requests
 import io
 from flask import Flask, request, jsonify
-from pymongo import MongoClient
 from bson.objectid import ObjectId
 import bcrypt
 import random
 import json
 import pickle
 import numpy as np
-import nltk
-from nltk.stem import WordNetLemmatizer
-from keras.models import load_model
+
 
 
 
