@@ -6,13 +6,16 @@ from docx import Document
 import requests
 import io
 from flask import Flask, request, jsonify
+from pymongo import MongoClient
 from bson.objectid import ObjectId
 import bcrypt
 import random
 import json
 import pickle
 import numpy as np
-
+import nltk
+from nltk.stem import WordNetLemmatizer
+from keras.models import load_model
 
 
 
@@ -651,7 +654,98 @@ def print_info_adoption():
     else:
         return "Failed to fetch the document from the URL", 500
 
+# Connect to MongoDB
+client = MongoClient("mongodb://localhost:27017/")
+db = client["Auth"]
+users_collection = db["signup"]
+
+@app.route("/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    # Check if username already exists
+    if users_collection.find_one({"username": username}):
+        return jsonify({"message": "Username already exists"}), 400
+
+    # Insert new user into the database
+    try:
+        user_id = users_collection.insert_one({"username": username, "password": password}).inserted_id
+        print("Success")
+        return jsonify({"message": "User created successfully", "user_id": str(user_id)}), 201
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"message": "An error occurred. Please try again later"}), 500
     
+def send_response(data):
+    return jsonify({"message": "", "data": data, "success": True})
+
+def error_response(message, success=True):
+    return jsonify({"message": message, "data": "", "success": success})
+    
+@app.route('/login', methods=['POST'])
+def login_user():
+    request_body = request.get_json()
+    user = users_collection.find_one({'username': request_body['username'], 'password': request_body['password']})
+    if user:
+        user['_id'] = str(user['_id'])
+        return send_response({"message": "Login", "success": True, "user": user})
+    else:
+        return error_response("Invalid username or password", False)
+    
+
+nltk.download('punkt')
+nltk.download('wordnet')
+
+lemmatizer = WordNetLemmatizer()
+intents = json.loads(open('mainQueries.json').read())
+
+words = pickle.load(open('words.pkl', 'rb'))
+classes = pickle.load(open('classes.pkl', 'rb'))
+model = load_model('chatbot_model.h5')
+
+def clean_up_sentence(sentence):
+    sentence_words = nltk.word_tokenize(sentence)
+    sentence_words = [lemmatizer.lemmatize(word) for word in sentence_words]
+    return sentence_words
+
+def bag_of_words(sentence):
+    sentence_words = clean_up_sentence(sentence)
+    bag = [0] * len(words)
+    for w in sentence_words:
+        for i, word in enumerate(words):
+            if word == w:
+                bag[i] = 1
+    return np.array(bag)
+
+def predict_class(sentence):
+    bow = bag_of_words(sentence)
+    res = model.predict(np.array([bow]))[0]
+    ERROR_THRESHOLD = 0.25
+    results = [[i, r] for i, r in enumerate(res) if r > ERROR_THRESHOLD]
+    results.sort(key=lambda x: x[1], reverse=True)
+    return_list = []
+    for r in results:
+        return_list.append({'intent': classes[r[0]], 'probability': str(r[1])})
+    return return_list
+
+def get_response(intents_list, intents_json):
+    tag = intents_list[0]['intent']
+    list_of_intents = intents_json['intents']
+    for i in list_of_intents:
+        if i['tag'] == tag:
+            result = random.choice(i['responses'])
+            break
+    return result
+
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    message = data['message']
+    response = get_response(predict_class(message), intents)
+    return jsonify({'response': response})
 
 
 if __name__ == '__main__':
