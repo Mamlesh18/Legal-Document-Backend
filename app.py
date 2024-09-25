@@ -654,45 +654,6 @@ def print_info_adoption():
     else:
         return "Failed to fetch the document from the URL", 500
 
-# Connect to MongoDB
-client = MongoClient("mongodb://localhost:27017/")
-db = client["Auth"]
-users_collection = db["signup"]
-
-@app.route("/signup", methods=["POST"])
-def signup():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-
-    # Check if username already exists
-    if users_collection.find_one({"username": username}):
-        return jsonify({"message": "Username already exists"}), 400
-
-    # Insert new user into the database
-    try:
-        user_id = users_collection.insert_one({"username": username, "password": password}).inserted_id
-        print("Success")
-        return jsonify({"message": "User created successfully", "user_id": str(user_id)}), 201
-    except Exception as e:
-        print("Error:", e)
-        return jsonify({"message": "An error occurred. Please try again later"}), 500
-    
-def send_response(data):
-    return jsonify({"message": "", "data": data, "success": True})
-
-def error_response(message, success=True):
-    return jsonify({"message": message, "data": "", "success": success})
-    
-@app.route('/login', methods=['POST'])
-def login_user():
-    request_body = request.get_json()
-    user = users_collection.find_one({'username': request_body['username'], 'password': request_body['password']})
-    if user:
-        user['_id'] = str(user['_id'])
-        return send_response({"message": "Login", "success": True, "user": user})
-    else:
-        return error_response("Invalid username or password", False)
     
 
 nltk.download('punkt')
